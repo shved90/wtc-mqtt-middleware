@@ -28,8 +28,9 @@ const createMQTTMiddleware = (url, origin) => {
 
         const createMQTTStub = () => {
             const methods = {
-                publish: () => e,
-                subscribe: () => e
+                connect: (e) => e,
+                publish: (e) => e,
+                subscribe: (e) => e
             }
 
             return {
@@ -40,20 +41,21 @@ const createMQTTMiddleware = (url, origin) => {
         let MQTTStub = createMQTTStub()
 
         const connect = (callback) => {
-            console.log(url, options)
             try {
+                console.log('TRY RUN')
                 const client = connect(url, options)
                 client.subscribe('#')
                 state.isConnected = true
                 state.connetionType = 'CONNECTED'
             }
             catch {
+                console.log('CATCH RUN')
                 console.warn('connect catch error here somewhere')
                 onError(client)
                 state.connetionType = 'STUB'
             }
-
-            events.connect.function()
+            console.log('AFTER PROMISE')
+            // events.connect.function()
             state.isConnected = true
 
             callback()
@@ -62,7 +64,7 @@ const createMQTTMiddleware = (url, origin) => {
 
         const publish = (action, origin, sessionID) => {
             console.log('on publish', formatOutput(action, origin, sessionID))
-            client.publish('analytics', formatOutput(action, origin, sessionID))
+            MQTTStub.publish('analytics', formatOutput(action, origin, sessionID))
         }
 
         return {
