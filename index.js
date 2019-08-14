@@ -20,15 +20,15 @@ const createMQTTMiddleware = (url, origin) => {
         }
 
         let events = {
-            connect: {
-                event: 'connect',
+            linkup: {
+                event: 'linkup',
                 function: () => null
             }
         }
 
         const createMQTTStub = () => {
             const methods = {
-                connect: (e) => e,
+                linkup: (e) => e,
                 publish: (e) => e,
                 subscribe: (e) => e
             }
@@ -40,22 +40,21 @@ const createMQTTMiddleware = (url, origin) => {
 
         let MQTTStub = createMQTTStub()
 
-        const connect = (callback) => {
+        const linkup = (callback) => {
             try {
                 console.log('TRY RUN')
-                const client = connect(url, options)
-                client.subscribe('#')
+                MQTTStub = connect(url, options)
+                MQTTStub.subscribe('#')
                 state.isConnected = true
                 state.connetionType = 'CONNECTED'
             }
             catch {
                 console.log('CATCH RUN')
-                console.warn('connect catch error here somewhere')
-                onError(client)
+                onError(MQTTStub)
                 state.connetionType = 'STUB'
             }
             console.log('AFTER PROMISE')
-            // events.connect.function()
+            events.linkup.function()
             state.isConnected = true
 
             callback()
@@ -69,7 +68,7 @@ const createMQTTMiddleware = (url, origin) => {
 
         return {
             state,
-            connect,
+            linkup,
             publish
         }
 
@@ -79,12 +78,6 @@ const createMQTTMiddleware = (url, origin) => {
 
         
         const mqttConnection = createMQTTConnection()
-
-
-
-        // const client = connect(url, options)
-        // onError(client)
-        // client.subscribe('#')
 
         const sessionID = randGenerator()
 
@@ -100,14 +93,14 @@ const createMQTTMiddleware = (url, origin) => {
                 const connState = mqttConnection.state
 
                 if(!connState.isConnected){
-                    mqttConnection.connect(() => {
+                    mqttConnection.linkup(() => {
                         console.log('doesnt do anything')
                     })
 
                 }
 
             }
-            console.log('does anything', formatOutput(action, origin, sessionID))
+            console.log('does something', formatOutput(action, origin, sessionID))
             mqttConnection.publish(action, origin, sessionID)
             return next(action)
         }
