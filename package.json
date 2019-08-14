@@ -1,0 +1,14 @@
+{
+  "name": "wtc-sub-middleware",
+  "version": "1.3.2",
+  "description": "We The Curious actions subscription middleware",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Alexander Shved",
+  "license": "MIT",
+  "dependencies": {
+    "mqtt": "^3.0.0"
+  }
+}
