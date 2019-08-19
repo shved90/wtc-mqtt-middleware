@@ -1,169 +1,69 @@
 
-import { connect } from 'mqtt'
-import onError from './onError'
-import { formatOutput } from './formatOutput'
-import { randGenerator } from './randomGenerator'
+import { createMQTTConnection } from './createMQTTConnection'
 
+export const randGenerator = () => {
+    return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
+}
 
-const createMQTTMiddleware = (url, origin) => {
+const createAnalyticsMiddleware = params => store => {
 
+    const {
+        app
+    } = params
 
-    const createMQTTConnection = () => {
+    if (!app) throw Error('App must have a name declared')
 
-        let state = {
-            isConnected: false,
-            connectionType: 'FAILED'
+    let sessionId = null
+
+    const mqttConnection = createMQTTConnection(params)
+
+    return next => action => {
+
+        if (action.type === '@@CURIOS_SESSION_RESET') {
+            sessionId = randGenerator() 
         }
 
-        const options = {
-            reconnectPeriod: 10000
-        }
+        if (action.type === '@@CURIOS_INIT') {
+            const connState = mqttConnection.getState()
 
-        let events = {
-            linkup: {
-                event: 'linkup',
-                function: () => null
-            }
-        }
-
-        const createMQTTStub = () => {
-            const methods = {
-                linkup: (e) => e,
-                publish: (e) => e,
-                subscribe: (e) => e
-            }
-
-            return {
-                ...methods
-            }
-        }
-
-        let MQTTStub = createMQTTStub()
-
-        const linkup = (callback) => {
-            try {
-                console.log('TRY RUN')
-                MQTTStub = connect(url, options)
-                MQTTStub.subscribe('#')
-                state.isConnected = true
-                state.connetionType = 'CONNECTED'
-            }
-            catch {
-                console.log('CATCH RUN')
-                onError(MQTTStub)
-                state.connetionType = 'STUB'
-            }
-            console.log('AFTER PROMISE')
-            events.linkup.function()
-            state.isConnected = true
-
-            callback()
-
-        }
-
-        const publish = (action, origin, sessionID) => {
-            console.log('on publish', formatOutput(action, origin, sessionID))
-            MQTTStub.publish('analytics', formatOutput(action, origin, sessionID))
-        }
-
-        return {
-            state,
-            linkup,
-            publish
-        }
-
-    }
-
-    return store => {
-
-        
-        const mqttConnection = createMQTTConnection()
-
-        const sessionID = randGenerator()
-
-        // client.on('message', ((action, message) => {
-        //     let parsedMessage = JSON.parse(new TextDecoder("utf-8").decode(message))
-        //     console.log('mqtt logger', formatOutput(parsedMessage, origin, sessionID))
-        // }))
-
-        return next => action => {
-
-            if(action.type == '@@CURIOS_INIT') {
-
-                const connState = mqttConnection.state
-
-                if(!connState.isConnected){
-                    mqttConnection.linkup(() => {
-                        console.log('doesnt do anything')
+            if (!connState.isConnected) {
+                next(action)
+                try {
+                    mqttConnection.connect(() => store.dispatch({
+                        type: '@@CURIOS_ANALYTICS_CONNECT',
+                        payload: {
+                            ...connState
+                        }
+                    }))
+                }catch(err){
+                    store.dispatch({
+                        type: '@@CURIOS_ANALYTICS_CONNECT',
+                        isError: true,
+                        error :{
+                            message: err
+                        },
+                        payload: {
+                            ...connState
+                        }
                     })
-
                 }
-
             }
-            console.log('does something', formatOutput(action, origin, sessionID))
-            mqttConnection.publish(action, origin, sessionID)
-            return next(action)
         }
+
+        if (!sessionId){
+            sessionId = randGenerator()
+        }
+
+        mqttConnection.publish(
+            JSON.stringify({
+                origin: app ? app : 'NOT SET',
+                action,
+                sessionId
+            })
+        )
+        
+        return next(action)
     }
 }
 
-
-//     return store => {
-
-//         const options = {
-//             reconnectPeriod: 10000
-//         }
-
-//         const client = connect(url, options)
-//         onError(client)
-//         client.subscribe('#')
-
-//         const sessionID = randGenerator()
-
-//         client.on('message', ((action, message) => {
-//             let parsedMessage = JSON.parse(new TextDecoder("utf-8").decode(message))
-//             console.log('mqtt logger', formatOutput(parsedMessage, origin, sessionID))
-//         }))
-
-//         return next => action => {
-//             console.log('before dispatch', formatOutput(action, origin, sessionID))
-//             client.publish('analytics', formatOutput(action, origin, sessionID))
-//             return next(action)
-//         }
-//     }
-// }
-
-//WIP REDUX DISPATCHER
-// const dispatchMQTTAction = (url, origin) => ({ dispatch }) => {
-
-//     const options = {
-//         reconnectPeriod: 10000
-//     }
-
-//     const client = connect(url, options)
-//     onError(client)
-//     client.subscribe('#')
-
-//     const addOrigin = (content) => {
-//         origin = (typeof origin !== 'undefined') ? origin : 'not set'; //TODO add regex once format is finalised
-//         let withOrigin = content
-//         withOrigin.origin = origin
-//         withOrigin = JSON.stringify(withOrigin)
-//         return withOrigin
-//     }
-
-//     client.on('message', ((action, message) => {
-//         let parsedMessage = JSON.parse(new TextDecoder("utf-8").decode(message))
-//         console.log('mqtt dispatcher', addOrigin(parsedMessage))
-//         dispatch(message)
-//     }
-//     ))
-
-//     return next => (action) => {
-//         console.log('next action', addOrigin(action))
-//         client.publish('analytics', addOrigin(action))
-//         return next(action)
-//     };
-// }
-
-export { createMQTTMiddleware }
+export { createAnalyticsMiddleware }
